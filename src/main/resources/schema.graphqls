@@ -3,7 +3,11 @@ type Query {
 }
 
 type Relativity {
-  author: String!
+  author: Author
   specialDate(pattern: String): String!
   generalDate(pattern: String): String!
+}
+
+type Author {
+  name: String!
 }

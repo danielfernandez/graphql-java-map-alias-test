@@ -26,6 +26,8 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -34,8 +36,15 @@ import javax.annotation.PostConstruct;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import graphql.GraphQL;
+import graphql.language.Argument;
+import graphql.language.SelectionSet;
 import graphql.schema.DataFetchingEnvironment;
+import graphql.schema.DataFetchingFieldSelectionSet;
+import graphql.schema.FieldCoordinates;
+import graphql.schema.GraphQLObjectType;
+import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLSchema;
+import graphql.schema.SelectedField;
 import graphql.schema.idl.RuntimeWiring;
 import graphql.schema.idl.SchemaGenerator;
 import graphql.schema.idl.SchemaParser;
@@ -93,34 +102,60 @@ public class GraphQLProvider {
      * ====================
      */
 
-    static Map<String,Object> computeRelativity(final DataFetchingEnvironment env) {
+    private static Map<String,Object> computeRelativity(final DataFetchingEnvironment env) {
+
+//        final List<Argument> generalDateArgs =
+//                env.getMergedField().getFields().stream().filter(f -> f.getName().equals("generalDate")).findFirst().get().getArguments();
+
+        final Map<String,String> aliasedSelectedFields = computeAliasedSelectedFields(env);
+
         final Map<String,Object> user = new HashMap<>();
         user.put("author", "Albert Einstein");
         return user;
     }
 
-    static String fetchSpecialDate(final DataFetchingEnvironment env) {
+    private static String fetchSpecialDate(final DataFetchingEnvironment env) {
+        return formatDate(SPECIAL_DATE, env.getArgument("pattern"));
+    }
 
-        final String pattern = env.getArgument("pattern");
+    private static String fetchGeneralDate(final DataFetchingEnvironment env) {
+        return formatDate(GENERAL_DATE, env.getArgument("pattern"));
+    }
+
+    private static String formatDate(final LocalDate localDate, final String pattern) {
         final DateTimeFormatter formatter =
                 (pattern != null)?
                         DateTimeFormatter.ofPattern(pattern, Locale.US) :
                         DateTimeFormatter.ISO_DATE;
+        return localDate.format(formatter);
+    }
 
-        return SPECIAL_DATE.format(formatter);
+
+    private static Map<String,String> computeAliasedSelectedFields(final DataFetchingEnvironment env) {
+
+        final GraphQLOutputType outputType = env.getFieldType();
+        if (!(outputType instanceof GraphQLObjectType)) {
+            return null;
+        }
+        final GraphQLObjectType objectType = (GraphQLObjectType) outputType;
+
+        final Map<String,String> aliasedSelectedFields = new LinkedHashMap<>();
+        computeAliasedSelectedFieldsLevel(env.getGraphQLSchema(), objectType, env.getSelectionSet());
+        return aliasedSelectedFields;
 
     }
 
-    static String fetchGeneralDate(final DataFetchingEnvironment env) {
 
-        final String pattern = env.getArgument("pattern");
-        final DateTimeFormatter formatter =
-                (pattern != null)?
-                        DateTimeFormatter.ofPattern(pattern, Locale.US) :
-                        DateTimeFormatter.ISO_DATE;
+    private static void computeAliasedSelectedFieldsLevel(
+            final GraphQLSchema schema, final GraphQLObjectType objectType,
+            final DataFetchingFieldSelectionSet objectSelectionSet) {
 
-        return GENERAL_DATE.format(formatter);
-
+        final Map<String,String> aliasedSelectedFields = new LinkedHashMap<>();
+        for (final SelectedField field : objectSelectionSet.getFields()) {
+            aliasedSelectedFields.put(field.getQualifiedName(), field.getName());
+        }
+        return aliasedSelectedFields;
     }
+
 
 }
